@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 from prompts import system_prompt
 from config import MODEL_NAME
+from call_function import available_functions
 
 def main():
     parser = argparse.ArgumentParser(description="Chatbot")
@@ -30,8 +31,10 @@ def generate_content(client, messages, verbose):
     response = client.models.generate_content(
         model= MODEL_NAME, 
         contents= messages,
-        config = types.GenerateContentConfig(system_instruction=system_prompt,
-                                             temperature=0
+        config = types.GenerateContentConfig(
+            tools=[available_functions],
+            system_instruction=system_prompt,
+            temperature=0,                                   
         )
     )
     if not response.usage_metadata:
@@ -39,10 +42,15 @@ def generate_content(client, messages, verbose):
     
     if verbose:
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
-        print("Response tokens:", response.usage_metadata.candidates_token_count)     
-    print("Response:")
-    print(response.text)
+        print("Response tokens:", response.usage_metadata.candidates_token_count) 
 
+    if not response.function_calls:
+        print("Response:")
+        print(response.text)
+        return
+    
+    for function_call in response.function_calls:
+        print(f"Calling function: {function_call.name}({function_call.args})")         
 
 if __name__ == "__main__":
     main()
