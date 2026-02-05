@@ -4,7 +4,8 @@ import argparse
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-
+from prompts import system_prompt
+from config import MODEL_NAME
 
 def main():
     parser = argparse.ArgumentParser(description="Chatbot")
@@ -19,19 +20,24 @@ def main():
     
     client = genai.Client(api_key=api_key)
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
-    generate_content(client, messages, args.verbose, args.user_prompt)
+    if args.verbose:
+        print(f"User prompt: {args.user_prompt}\n")
+
+    generate_content(client, messages, args.verbose)
 
 
-def generate_content(client, messages, verbose, user_prompt):   
+def generate_content(client, messages, verbose):   
     response = client.models.generate_content(
-        model='gemini-2.5-flash', 
-        contents= messages
+        model= MODEL_NAME, 
+        contents= messages,
+        config = types.GenerateContentConfig(system_instruction=system_prompt,
+                                             temperature=0
+        )
     )
-    if response.usage_metadata == None:
+    if not response.usage_metadata:
         raise RuntimeError("Gemini API response appears to be malformed")
     
     if verbose:
-        print("User prompt:", user_prompt)
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)     
     print("Response:")
