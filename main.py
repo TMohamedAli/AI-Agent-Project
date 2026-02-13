@@ -1,5 +1,6 @@
 import os
 import argparse
+import sys
 
 from dotenv import load_dotenv
 from google import genai
@@ -15,7 +16,7 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    api_key = os.environ.get("GEMINI_API_KEY")#Read the API key from .env so we don't hard-code secrets
+    api_key = os.environ.get("GEMINI_API_KEY")
     if api_key == None:
         raise RuntimeError("GEMINI_API_KEY enviroment variable not set")
     
@@ -24,8 +25,13 @@ def main():
     if args.verbose:
         print(f"User prompt: {args.user_prompt}\n")
 
-    generate_content(client, messages, args.verbose)
-
+    for _ in range(20):
+        status = generate_content(client, messages, args.verbose)
+        if status == "done":
+            break
+    else:
+        print("Max iterations reached without a final response")
+        sys.exit(1)
 
 def generate_content(client, messages, verbose):   
     response = client.models.generate_content(
@@ -47,8 +53,12 @@ def generate_content(client, messages, verbose):
     if not response.function_calls:
         print("Response:")
         print(response.text)
-        return
+        return "done"
     
+    if response.candidates:
+        for content in response.candidates:
+            messages.append(content.content)
+
     function_results = []
     for function_call in response.function_calls:
         result = call_function(function_call, verbose)
@@ -61,6 +71,7 @@ def generate_content(client, messages, verbose):
         if verbose: 
             print(f"-> {result.parts[0].function_response.response}")
         function_results.append(result.parts[0])
-
+    messages.append(types.Content(role="user", parts=function_results))
+    return "continue"
 if __name__ == "__main__":
     main()
